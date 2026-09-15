@@ -1,0 +1,9 @@
+fastapi<1,>=0.115
+uvicorn[standard]<1,>=0.34
+psycopg[binary]<4,>=3.2
+pydantic-settings<3,>=2.7
+argon2-cffi<24,>=23.1
+
+[test]
+pytest<9,>=8.3
+httpx<1,>=0.28
