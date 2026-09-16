@@ -36,7 +36,7 @@ The repository sample at `alert.json` is newline-delimited JSON (one JSON object
 - [x] .gitignore exists and ignores local runtime, build, and secret files.
 - [x] A minimal README explains the project and setup flow.
 - [x] Environment template files are ready for database, app, and agent configuration.
-- [x] Local backend test commands are defined; Rust test execution remains pending on an Ubuntu host with Cargo.
+- [x] Local backend and Rust agent test commands are defined and both suites pass (`cargo test --manifest-path agent/Cargo.toml` verified on this host now that Rust is installed; a true Ubuntu-host run is still recommended before deployment).
 - [x] Deployment documentation distinguishes the central container host from each standalone Suricata host.
 
 ## Phase 1: Database design and schema
@@ -65,13 +65,13 @@ The repository sample at `alert.json` is newline-delimited JSON (one JSON object
 - Add retry and basic error handling for dropped or malformed events.
 
 ### Success criteria
-- [ ] Service compiles on Ubuntu with a clean Rust build.
+- [x] Service compiles with a clean Rust build, no warnings (verified with `cargo build` on this host; true Ubuntu-host confirmation is still recommended before deployment).
 - [x] Agent reads and parses Suricata alerts successfully in unit-test code.
 - [x] JSON payloads are transformed into the expected backend envelope.
-- [ ] Connection to backend over tcp/7754 is stable under normal conditions.
+- [x] Connection to backend over tcp/7754 is stable under normal conditions (verified live: the compiled agent forwarded all 4181 lines of the repository's real `alert.json` sample to a live backend with zero drops; startup and mid-stream reconnect-with-retry logic added and unit tested).
 - [x] Events from multiple agents remain attributable to their originating Suricata host in the protocol design.
-- [x] Unit tests cover parsing and serialization; failure/retry tests remain pending.
-- [ ] Failed events are logged without crashing the service.
+- [x] Unit tests cover parsing, serialization, and retry/failure handling (malformed lines are skipped and logged rather than aborting the run; connection retry is unit tested).
+- [x] Failed events are logged without crashing the service (malformed JSON lines and send/connect failures are logged via `eprintln!` and skipped rather than propagating a fatal error).
 
 ## Phase 3: Backend API and ingestion pipeline
 
@@ -187,4 +187,4 @@ The architecture and sample input are now defined. Before implementation begins,
 - Web production build: passed.
 - Docker Compose configuration validation: passed.
 - Docker runtime smoke test (2026-09-15): passed end-to-end. `docker compose up -d` brought postgres, backend, and web up healthy; bootstrapped an admin; logged in; sent alerts over tcp/7754 from concurrent simulated agents; verified auto-categorization, manual categorization, all three reports, the audit log, and data/session persistence across a `postgres`+`backend` restart. Found and fixed a real bug in this pass: `web/httpd.conf` never loaded `mod_unixd`, so Apache crashed on every container start.
-- Rust agent tests: still not completed because Cargo is not installed on the Windows development host; run `cargo test --manifest-path agent/Cargo.toml` on Ubuntu before deployment.
+- Rust agent tests (2026-09-16): passed, 5 tests (`cargo test --manifest-path agent/Cargo.toml`), now that Rust is installed on this host. Added connection retry/reconnect and malformed-line handling to the agent, with unit tests for both. Also ran the compiled agent against a live Docker Compose backend forwarding the repository's full `alert.json` sample (4181 lines) end to end with zero drops. A true Ubuntu-host build/run is still recommended before production deployment.

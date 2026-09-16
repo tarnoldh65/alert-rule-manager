@@ -16,7 +16,7 @@ node_modules/
 .npm/
 
 # Rust
-/target/
+target/
 Cargo.lock
 
 # IDE/editor
