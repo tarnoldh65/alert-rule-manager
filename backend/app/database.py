@@ -96,6 +96,22 @@ def create_user(username: str, password: str, role: str) -> int:
         return row["id"]
 
 
+def ensure_admin_user(username: str, password: str) -> int:
+    with connection() as conn:
+        row = conn.execute(
+            """
+            INSERT INTO users (username, password_hash, role)
+            VALUES (%s, %s, 'admin')
+            ON CONFLICT (username) DO UPDATE
+                SET password_hash = EXCLUDED.password_hash, role = 'admin', is_active = TRUE
+            RETURNING id
+            """,
+            (username, password_hasher.hash(password)),
+        ).fetchone()
+        conn.commit()
+        return row["id"]
+
+
 def create_session(username: str, password: str) -> str | None:
     with connection() as conn:
         user = conn.execute("SELECT id, password_hash FROM users WHERE username = %s AND is_active", (username,)).fetchone()

@@ -5,6 +5,7 @@ alert_rule_manager_backend.egg-info/dependency_links.txt
 alert_rule_manager_backend.egg-info/requires.txt
 alert_rule_manager_backend.egg-info/top_level.txt
 app/__init__.py
+app/bootstrap.py
 app/config.py
 app/database.py
 app/ingest.py
