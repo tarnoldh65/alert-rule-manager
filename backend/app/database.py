@@ -8,6 +8,7 @@ from argon2 import PasswordHasher
 import psycopg
 from psycopg.rows import dict_row
 
+from . import autocat
 from .config import settings
 
 password_hasher = PasswordHasher()
@@ -42,8 +43,25 @@ def insert_alert(source_id: str, payload: dict) -> int:
                 psycopg.types.json.Jsonb(payload),
             ),
         ).fetchone()
+        alert_id = row["id"]
+        rules = list(conn.execute(
+            "SELECT id, category_id, field_path, match_value FROM autocategories WHERE is_enabled ORDER BY id"
+        ))
+        match = autocat.find_match(payload, rules)
+        if match is not None:
+            conn.execute(
+                "INSERT INTO alert_categorizations (alert_id, category_id, autocategory_id) VALUES (%s, %s, %s)",
+                (alert_id, match["category_id"], match["id"]),
+            )
+            conn.execute(
+                """
+                INSERT INTO audit_log (action, entity_type, entity_id, details)
+                VALUES ('auto_categorize', 'alert', %s, %s)
+                """,
+                (alert_id, psycopg.types.json.Jsonb({"autocategory_id": match["id"], "category_id": match["category_id"]})),
+            )
         conn.commit()
-        return row["id"]
+        return alert_id
 
 
 def list_uncategorized(limit: int, offset: int) -> list[dict]:
@@ -86,12 +104,16 @@ def categorize_alert(alert_id: int, category_id: int, user_id: int) -> None:
         conn.commit()
 
 
-def create_user(username: str, password: str, role: str) -> int:
+def create_user(username: str, password: str, role: str, actor_id: int) -> int:
     with connection() as conn:
         row = conn.execute(
             "INSERT INTO users (username, password_hash, role) VALUES (%s, %s, %s) RETURNING id",
             (username, password_hasher.hash(password), role),
         ).fetchone()
+        conn.execute(
+            "INSERT INTO audit_log (user_id, action, entity_type, entity_id, details) VALUES (%s, 'create_user', 'user', %s, %s)",
+            (actor_id, row["id"], psycopg.types.json.Jsonb({"username": username, "role": role})),
+        )
         conn.commit()
         return row["id"]
 
@@ -152,6 +174,53 @@ def create_category(name: str, description: str) -> int:
         ).fetchone()
         conn.commit()
         return row["id"]
+
+
+def list_users() -> list[dict]:
+    with connection() as conn:
+        return list(conn.execute("SELECT id, username, role, is_active, created_at FROM users ORDER BY username"))
+
+
+def set_user_active(user_id: int, is_active: bool, actor_id: int) -> None:
+    with connection() as conn:
+        conn.execute("UPDATE users SET is_active = %s WHERE id = %s", (is_active, user_id))
+        conn.execute(
+            "INSERT INTO audit_log (user_id, action, entity_type, entity_id, details) VALUES (%s, 'set_user_active', 'user', %s, %s)",
+            (actor_id, user_id, psycopg.types.json.Jsonb({"is_active": is_active})),
+        )
+        conn.commit()
+
+
+def list_autocategories() -> list[dict]:
+    with connection() as conn:
+        return list(conn.execute("SELECT * FROM autocategories ORDER BY name"))
+
+
+def create_autocategory(name: str, category_id: int, field_path: str, match_value: str, actor_id: int) -> int:
+    with connection() as conn:
+        row = conn.execute(
+            """
+            INSERT INTO autocategories (name, category_id, field_path, match_value, created_by)
+            VALUES (%s, %s, %s, %s, %s) RETURNING id
+            """,
+            (name, category_id, field_path, match_value, actor_id),
+        ).fetchone()
+        conn.execute(
+            "INSERT INTO audit_log (user_id, action, entity_type, entity_id, details) VALUES (%s, 'create_autocategory', 'autocategory', %s, %s)",
+            (actor_id, row["id"], psycopg.types.json.Jsonb({"name": name, "category_id": category_id})),
+        )
+        conn.commit()
+        return row["id"]
+
+
+def set_autocategory_enabled(autocategory_id: int, is_enabled: bool, actor_id: int) -> None:
+    with connection() as conn:
+        conn.execute("UPDATE autocategories SET is_enabled = %s WHERE id = %s", (is_enabled, autocategory_id))
+        conn.execute(
+            "INSERT INTO audit_log (user_id, action, entity_type, entity_id, details) VALUES (%s, 'set_autocategory_enabled', 'autocategory', %s, %s)",
+            (actor_id, autocategory_id, psycopg.types.json.Jsonb({"is_enabled": is_enabled})),
+        )
+        conn.commit()
 
 
 def set_focus(alert_id: int, user_id: int) -> None:
