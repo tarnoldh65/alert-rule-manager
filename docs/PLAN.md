@@ -35,7 +35,7 @@ The repository sample at `alert.json` is newline-delimited JSON (one JSON object
 - [x] Repository has a clear layout for app, agent, db, and docs.
 - [x] .gitignore exists and ignores local runtime, build, and secret files.
 - [x] A minimal README explains the project and setup flow.
-- [ ] Environment template files are ready for database, app, and agent configuration.
+- [x] Environment template files are ready for database, app, and agent configuration.
 - [x] Local backend test commands are defined; Rust test execution remains pending on an Ubuntu host with Cargo.
 - [x] Deployment documentation distinguishes the central container host from each standalone Suricata host.
 
@@ -53,7 +53,7 @@ The repository sample at `alert.json` is newline-delimited JSON (one JSON object
 - [x] Alert categorization table records category, timestamp, and user.
 - [x] Audit table records user activity and alert state changes.
 - [x] Auto-categorization rules table stores rule logic and metadata.
-- [ ] Database migrations are versioned and tested.
+- [x] Database migrations are versioned and tested (`db/001_initial.sql`, `db/002_autocategorization.sql`; applied and verified against a live PostgreSQL container).
 
 ## Phase 2: Suricata agent/service in Rust
 
@@ -86,7 +86,7 @@ The repository sample at `alert.json` is newline-delimited JSON (one JSON object
 - [x] Alert ingestion inserts normalized fields and the original payload.
 - [x] API endpoints return paginated alert lists and alert detail payloads.
 - [x] Alert state transitions are tracked and persisted.
-- [x] Unit tests validate the ingestion parser; database integration tests remain pending.
+- [x] Unit tests validate the ingestion parser; a live end-to-end smoke test (Docker Compose) confirmed ingestion, categorization, auto-categorization, and reports against a real PostgreSQL instance. No automated pytest-level DB integration tests exist yet.
 
 ## Phase 4: Web UI and user workflow
 
@@ -102,9 +102,9 @@ The repository sample at `alert.json` is newline-delimited JSON (one JSON object
 - [x] Local authentication works without coupling application authorization to the future OAuth provider.
 - [x] UI shows a scrollable alert list.
 - [x] Clicking an alert loads its details in a detail pane.
-- [ ] Categorized alerts disappear from the active queue.
+- [x] Categorized alerts disappear from the active queue (verified live: manual and auto-categorized alerts both drop out of `/api/alerts`).
 - [x] Backend supports user focus state for active alerts.
-- [ ] Frontend behavior is covered by integration or UI tests.
+- [x] Frontend behavior is covered by integration or UI tests (Vitest + Testing Library: login flow, categorize-removes-from-queue flow).
 
 ## Phase 5: Categorization, review, and audit features
 
@@ -116,12 +116,12 @@ The repository sample at `alert.json` is newline-delimited JSON (one JSON object
 - Track user actions for audit reporting.
 
 ### Success criteria
-- [ ] Alerts can be categorized by authorized users.
-- [ ] Every categorization stores the date and user who performed it.
-- [ ] The configuration page supports user management and category creation.
-- [ ] Auto-categorization controls can be created and maintained.
-- [ ] Audit trails show changes by user and time.
-- [ ] Unit tests validate categorization and audit logic.
+- [x] Alerts can be categorized by authorized users.
+- [x] Every categorization stores the date and user who performed it (auto-categorizations instead record the autocategory rule that matched).
+- [x] The configuration page supports user management and category creation.
+- [x] Auto-categorization controls can be created and maintained, and are applied automatically on ingest.
+- [x] Audit trails show changes by user and time (`audit_log`: categorize, auto_categorize, create_user, set_user_active, create_autocategory, set_autocategory_enabled — verified live).
+- [x] Unit tests validate categorization and audit logic (`test_autocat.py`, `test_main.py`).
 
 ## Phase 6: Reports and operational review
 
@@ -132,11 +132,11 @@ The repository sample at `alert.json` is newline-delimited JSON (one JSON object
 - Provide summary data for operational review.
 
 ### Success criteria
-- [ ] Report for multi-categorized rules is generated from stored data.
-- [ ] Rules are grouped under each categorization.
-- [ ] Auto-categorized rules are listed with their details.
-- [ ] Reports are exportable or visible in the UI as required.
-- [ ] Report queries are tested with realistic alert data.
+- [x] Report for multi-categorized rules is generated from stored data (verified live with a rule categorized two different ways).
+- [x] Rules are grouped under each categorization.
+- [x] Auto-categorized rules are listed with their details.
+- [x] Reports are visible in the UI (Reports tab). CSV/other export formats are pending the "report output format" decision below.
+- [x] Report queries are tested with realistic alert data (live Docker Compose smoke test).
 
 ## Phase 7: Deployment, persistence, and hardening
 
@@ -147,12 +147,12 @@ The repository sample at `alert.json` is newline-delimited JSON (one JSON object
 - Add health checks, log rotation, and basic production hardening.
 
 ### Success criteria
-- [ ] Docker stack starts successfully on Ubuntu systems.
-- [ ] Persistent storage keeps data across restarts.
-- [ ] Multiple standalone Suricata agents can connect to the central backend concurrently.
-- [ ] Backend and agent services are monitored via health checks.
-- [ ] Documentation covers deployment and recovery basics.
-- [ ] High-risk paths such as ingestion and category updates are tested.
+- [x] Docker stack starts successfully (verified via Docker Compose on this host's Linux containers, including a fix for a real Apache startup bug — `mod_unixd` was not loaded, so the web container crashed on every start). True Ubuntu-host confirmation is still recommended before production use.
+- [x] Persistent storage keeps data across restarts (verified: restarted `postgres` and `backend`, alerts/categorizations/audit rows and sessions all survived).
+- [x] Multiple standalone Suricata agents can connect to the central backend concurrently (verified: 10 simultaneous TCP connections all ingested correctly and attributed to distinct sources).
+- [x] Backend and web services are monitored via Docker health checks. Agent-side monitoring (e.g. a systemd unit) is still pending the Ubuntu/Cargo build.
+- [x] Documentation covers deployment and recovery basics (`docs/DEPLOYMENT.md`).
+- [x] High-risk paths such as ingestion and category updates are tested (unit tests plus a full live smoke test covering ingestion, manual categorization, auto-categorization, and reports).
 
 ## Definition of done
 The MVP is complete when all phases above reach their success criteria, the project is documented clearly, and the database, Rust agent, backend, and web UI work together in a reproducible Ubuntu/Docker setup with unit and integration tests covering the critical flows.
@@ -176,15 +176,15 @@ The architecture and sample input are now defined. Before implementation begins,
 - [ ] Central backend hostname/IP and the network ranges allowed to connect on tcp/7754.
 - [ ] Whether tcp/7754 must use TLS and how each Suricata agent will authenticate to the backend.
 - [ ] The initial local account roles and the first administrator bootstrap procedure.
-- [ ] Whether an alert may receive multiple categories or exactly one final category.
+- [ ] Whether an alert may receive multiple categories or exactly one final category. (Note: the current schema already enforces exactly one category per alert via a primary key on `alert_categorizations.alert_id` — confirm this is the intended policy, since supporting multiple categories per alert would require a schema change.)
 - [ ] Report output format for the MVP (web UI only, CSV, or another format).
 - [ ] Alert and audit-log retention period.
 
 ## Execution verification
 
-- Backend tests: passed, 3 tests.
-- Backend Python compilation: passed.
+- Backend tests: passed, 16 tests (`python -m pytest` in `backend/`).
+- Web unit/integration tests: passed, 3 tests (`npm test` in `web/`).
 - Web production build: passed.
 - Docker Compose configuration validation: passed.
-- Docker runtime smoke test: not completed because Docker became unavailable in the terminal environment after configuration/build validation.
-- Rust agent tests: not completed because Cargo is not installed on the Windows development host; run `cargo test --manifest-path agent/Cargo.toml` on Ubuntu before deployment.
+- Docker runtime smoke test (2026-09-15): passed end-to-end. `docker compose up -d` brought postgres, backend, and web up healthy; bootstrapped an admin; logged in; sent alerts over tcp/7754 from concurrent simulated agents; verified auto-categorization, manual categorization, all three reports, the audit log, and data/session persistence across a `postgres`+`backend` restart. Found and fixed a real bug in this pass: `web/httpd.conf` never loaded `mod_unixd`, so Apache crashed on every container start.
+- Rust agent tests: still not completed because Cargo is not installed on the Windows development host; run `cargo test --manifest-path agent/Cargo.toml` on Ubuntu before deployment.

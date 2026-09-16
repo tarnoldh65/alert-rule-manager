@@ -3,7 +3,7 @@
 This repository contains the planning and implementation structure for the Alert Rule Manager MVP.
 
 ## Status
-The project is in the planning phase. The implementation roadmap is documented in [docs/PLAN.md](docs/PLAN.md).
+Core ingestion, categorization, auto-categorization, reporting, and the web UI are implemented and covered by unit tests; see [docs/PLAN.md](docs/PLAN.md) for the phase-by-phase checklist and open items.
 
 ## Scope
 The system will ingest Suricata alerts in JSON form, store them in PostgreSQL, provide a web UI for review and categorization, support user accounts and audit tracking, and generate summary reports.
@@ -19,8 +19,9 @@ The system will ingest Suricata alerts in JSON form, store them in PostgreSQL, p
 ## Project documents
 - [AGENTS.md](AGENTS.md)
 - [docs/PLAN.md](docs/PLAN.md)
+- [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
 
 ## Local development
 
-Start the central services with `docker compose up --build`. Create the first local administrator after PostgreSQL is ready by running the backend bootstrap module with `ALERT_MANAGER_DATABASE_URL`, `ALERT_MANAGER_ADMIN_USERNAME`, and `ALERT_MANAGER_ADMIN_PASSWORD` set. Suricata agents use `ALERT_MANAGER_ALERT_FILE`, `ALERT_MANAGER_BACKEND`, and `ALERT_MANAGER_SOURCE_ID`.
+Copy `.env.example` to `.env` (and `backend/.env.example`, `agent/.env.example` for those components), then start the central services with `docker compose up --build`. Create the first local administrator after PostgreSQL is ready by running `docker compose exec backend python -m app.bootstrap`. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for host setup and recovery steps.
 
